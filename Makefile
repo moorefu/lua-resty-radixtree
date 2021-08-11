@@ -2,10 +2,19 @@ INST_PREFIX ?= /usr
 INST_LIBDIR ?= $(INST_PREFIX)/lib/lua/5.1
 INST_LUADIR ?= $(INST_PREFIX)/share/lua/5.1
 INSTALL ?= install
-UNAME ?= $(shell uname)
-OR_EXEC ?= $(shell which openresty)
-LUAROCKS_VER ?= $(shell luarocks --version | grep -E -o  "luarocks [0-9]+.")
-LUAJIT_DIR ?= $(shell ${OR_EXEC} -V 2>&1 | grep prefix | grep -Eo 'prefix=(.*)/nginx\s+--' | grep -Eo '/.*/')luajit
+UNAME ?= $(shell uname | awk -F '[_-]' '{print $$1}')
+ifeq ($(UNAME),MINGW64)
+	LR_EXEC ?= $(shell where luarocks)
+	OR_EXEC ?= $(shell where openresty)
+	LUAJIT_DIR ?= $(shell dirname ${OR_EXEC})
+else
+	LR_EXEC ?= $(shell which luarocks)
+	OR_EXEC ?= $(shell which openresty)
+	LUAJIT_DIR ?= $(shell ${OR_EXEC} -V 2>&1 | grep prefix | grep -Eo 'prefix=(.*)/nginx\s+--' | grep -Eo '/.*/')luajit
+endif
+
+LUAROCKS_VER ?= $(shell ${LR_EXEC} --version 2>&1| grep -E -o  "luarocks(\.lua) [0-9]+." |awk '{print $$2}')
+
 
 CFLAGS := -O2 -g -Wall -fpic -std=c99 -Wno-pointer-to-int-cast -Wno-int-to-pointer-cast
 
@@ -17,7 +26,10 @@ LDFLAGS := -shared
 ifeq ($(UNAME),Darwin)
 	LDFLAGS := -bundle -undefined dynamic_lookup
 	C_SO_NAME := librestyradixtree.dylib
+else ifeq  ($(UNAME),MINGW64)
+	C_SO_NAME := librestyradixtree.dll
 endif
+
 
 MY_CFLAGS := $(CFLAGS) -DBUILDING_SO
 MY_LDFLAGS := $(LDFLAGS) -fvisibility=hidden
@@ -63,10 +75,10 @@ install:
 ### deps:         Installation dependencies
 .PHONY: deps
 deps:
-ifneq ($(LUAROCKS_VER),luarocks 3.)
-	luarocks install rockspec/lua-resty-radixtree-master-0-0.rockspec --tree=deps --only-deps --local
+ifneq ($(LUAROCKS_VER),3.)
+	$(LR_EXEC) install rockspec/lua-resty-radixtree-master-0-0.rockspec --tree=deps --only-deps --local
 else
-	luarocks install --lua-dir=$(LUAJIT_DIR) rockspec/lua-resty-radixtree-master-0-0.rockspec --tree=deps --only-deps --local
+	$(LR_EXEC) install --lua-dir=$(LUAJIT_DIR) rockspec/lua-resty-radixtree-master-0-0.rockspec --tree=deps --only-deps --local
 endif
 
 
